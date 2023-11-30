@@ -4,13 +4,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define n 2
+#define n 4
 #define P 20
 
-double A[n][n] = {{2, 1}, {5, 7}};
-double prev_x[n] = {1, 1};
-double x[n] = {1, 1};
-double b[n] = {11, 13};
+double A[n][n] = {{10, -1, 2, 0}, {-1, 11, -1, 3}, {2, -1, 10, -1}, {0, 3, -1, 8}};
+double prev_x[n] = {1, 1, 1, 1};
+double x[n] = {1, 1, 1, 1};
+double b[n] = {6, 25, -11, 15};
 int N;
 
 pthread_barrier_t barrier;
@@ -22,7 +22,6 @@ void *jacobi(void *args)
 
     // Get the thread id from the arguments
     int id = *((int *) args);
-    printf("id = %d\n", id);
 
     // Jacobi's method
     for (int k = 0; k < P; k++)
@@ -39,8 +38,7 @@ void *jacobi(void *args)
                 }
             }
             
-            x[i] = (1 / A[i][i]) * (b[i] - sigma);
-            printf("k = %d | x%d = %.2f\n", k, i + 1, x[i]);
+            x[i] = (b[i] - sigma) / A[i][i];
         }
 
         // Wait for the other threads to proceed
