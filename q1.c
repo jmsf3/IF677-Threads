@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#define N 4
+#define N 3
 #define M 4
 #define Q 5
 #define TRUE 1
