@@ -1,138 +1,179 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <time.h>
 
-#define TRUE 1
-#define MAX 10
+#define N 5  // Número de arquivos
+#define P 10   // Número de elementos em cada arquivo
+#define T 3   // Número de threads
+#define MAX_NUM_PRODUCTS 10
 
-struct thread 
+// Array de mutex para exclusão mútua refinada
+pthread_mutex_t mutexArray[P + 1];
+
+// Mutex para exclusão mútua ao ler arquivos
+pthread_mutex_t fileMutex = PTHREAD_MUTEX_INITIALIZER;
+
+// Array para armazenar as ocorrências de cada número
+int occurrence[P + 1] = {0};
+
+// Array de flags para saber quais arquivos já foram processados
+int processedFiles[N] = {0};
+
+int totalNumbers = 0;  
+
+void generateRandomList(int *list, int size) 
 {
-    FILE *file;
-    pthread_mutex_t *mutexArray;
-    int *productCount;
-    int *fileIndex;
-    int N;
-};
-
-void *processFile(void *arg) {
-    //converte o ponteiro de volta para struct
-    struct thread *data = (struct thread *)arg;
-
-    int product;
-
-    while(TRUE) 
+    for (int i = 0; i < size; i++) 
     {
-        //Trava o mutex que controla o acesso aos arquivos
-        pthread_mutex_lock(&data->mutexArray[data->N]);
+        list[i] = rand() % (P + 1); 
+    }
+}
 
-        //Pega o indice do arquivo a ser lido
-        int index = *data->fileIndex;
+void createFiles() 
+{
+    for (int x = 1; x <= N; x++) 
+    {
+        int numProducts = rand() % MAX_NUM_PRODUCTS + 1;
 
-        (*data->fileIndex)++;
+        // Definir o caminho do arquivo
+        char filename[10];
+        sprintf(filename, "%d.in", x);
 
-        //Libera o mutex
-        pthread_mutex_unlock(&data->mutexArray[data->N]);
-
-        //Verificar se todos os arquivos ja foram lidos
-        if(index >= data->N)
-            break;
-
-        FILE *file = data->file[index];
-        char buffer[100];
-        while(fgets(buffer, sizeof(buffer), file) != NULL)
+        // Criar o arquivo
+        FILE *file = fopen(filename, "w");
+        if (file == NULL) 
         {
-            product = atoi(buffer);
-            pthread_mutex_lock(&data->mutexArray[product]);
-            data->productCount[product]++;
-            pthread_mutex_unlock(&data->mutexArray[product]);
+            printf("Erro ao criar arquivo");
+            exit(1);
+        }
+
+        int *randomList = malloc(numProducts * sizeof(int));
+        if (randomList == NULL) 
+        {
+            printf("Erro de alocação de memória");
+            exit(1);
+        }
+
+        generateRandomList(randomList, numProducts);
+
+        for (int i = 0; i < numProducts; i++) 
+        {
+            fprintf(file, "%d\n", randomList[i]);
+        }
+
+        free(randomList);
+        fclose(file);
+    }
+}
+
+void *readNumbers(void *arg) 
+{
+    int threadIndex = *(int *)arg;
+
+    for (int fileNumber = threadIndex + 1; fileNumber <= N; fileNumber += T) 
+    {
+        // Verifica se o arquivo já foi processado por outra thread
+        pthread_mutex_lock(&fileMutex);
+        if (processedFiles[fileNumber - 1] == 1) {
+            pthread_mutex_unlock(&fileMutex);
+            continue;
+        }
+        // Marca o arquivo como processado
+        processedFiles[fileNumber - 1] = 1;
+        pthread_mutex_unlock(&fileMutex);
+
+        char filename[10];
+        sprintf(filename, "%d.in", fileNumber);
+
+        // mutex para exclusão mútua ao ler arquivos
+        pthread_mutex_lock(&fileMutex);
+
+        FILE *file = fopen(filename, "r");
+        if (file == NULL) 
+        {
+            ("Erro ao abrir o arquivo");
+            pthread_mutex_unlock(&fileMutex);
+            pthread_exit(NULL);
+        }
+
+        // Lê os números do arquivo
+        int number;
+        while (fscanf(file, "%d", &number) == 1) 
+        {
+            // Adquire o mutex correspondente à posição do array de ocorrências
+            pthread_mutex_lock(&mutexArray[number]);
+
+            // Atualiza a quantidade do produto no array de ocorrências
+            occurrence[number]++;
+            totalNumbers++;  // Incrementa o total de números lidos
+
+            // Libera o mutex correspondente à posição do array de ocorrências
+            pthread_mutex_unlock(&mutexArray[number]);
         }
 
         fclose(file);
 
+        // Libera o mutex após ler o arquivo
+        pthread_mutex_unlock(&fileMutex);
     }
 
     pthread_exit(NULL);
 }
 
-
-int main()
+int main() 
 {
-    int N; //Arquivos
-    int T; //Threads
-    int P; //Produtos
+    // Seed
+    srand(time(NULL));
 
-    //Inicialiar array de mutex e o de arquivos
-    pthread_mutex_t mutexArray[MAX + 1];
-    FILE *fileArray[MAX + 1];
-    for(int i = 0; i <= MAX; i++) 
+    createFiles();
+
+    pthread_t threads[T];
+    int threadIndexes[T];  // Índices para identificar cada thread
+
+    // Inicializa os mutex para cada posição do array de ocorrências
+    for (int i = 0; i <= P; i++) 
     {
         pthread_mutex_init(&mutexArray[i], NULL);
     }
 
-    int countProducts[MAX] = {0};
-
-    //Inicialixa arrar de nomes dos arquivos
-    char fileNames[MAX][10];
-    for(int i = 1; i <= MAX; i++)
+    // Cria as threads e verifica erros
+    for (int i = 0; i < T; i++) 
     {
-        sprintf(fileNames[i-1], "%d.in", i);
-    }
-
-    //Array de threads
-    pthread_t threads[T];
-
-    // Inicializar a estrutura de dados para cada thread
-    struct thread thread_data[T];
-    for (int i = 0; i < T; ++i) {
-        thread_data[i].file = fileArray;
-        thread_data[i].mutexArray = mutexArray;
-        thread_data[i].productCount = countProducts;
-        thread_data[i].fileIndex = &i; // Cada thread inicia com um índice diferente
-        thread_data[i].N = N;
-
-        // Abrir os arquivos e adicionar ao array
-        for (int j = 0; j < N; ++j) {
-            FILE *file = fopen(fileNames[j], "r");
-            if (file == NULL) {
-                perror("Erro ao abrir o arquivo");
-                return 1;
-            }
-            fileArray[j] = file;
-        }
-
-        // Criar a thread e verificar por erros
-        int status = pthread_create(&threads[i], NULL, processFile, (void *)&thread_data[i]);
-        if(status != 0)
+        threadIndexes[i] = i;
+        if (pthread_create(&threads[i], NULL, readNumbers, (void *)&threadIndexes[i]) != 0) 
         {
-            printf("ERROR: pthread_create returned error code %d\n", status);
-            exit(-1);
+            fprintf(stderr, "Erro ao criar a thread\n");
+            exit(1);
         }
     }
 
-    //Aguardar a conclusão de todas as threads
-    for (int i = 0; i < T; ++i) {
-        pthread_join(threads[i], NULL);
+    // Aguarda as threads terminarem
+    for (int i = 0; i < T; i++) 
+    {
+        if (pthread_join(threads[i], NULL) != 0) 
+        {
+            fprintf(stderr, "Erro ao aguardar a thread\n");
+            exit(1);
+        }
     }
 
-    printf("Total de produtos lidos: %d\n", P);
-    printf("Percentual de cada tipo de produto vendido:\n");
+    // Imprime o total de números
+    printf("Total de números lidos: %d\n", totalNumbers);
 
-    for (int i = 0; i < P; ++i) {
-        int count = countProducts[i];
-        float percentage = (float)count / (float)P * 100;
-        printf("Produto %d: %.2f%%\n", i, percentage);
+    // Imprime as ocorrências relativas ao total de números lidos
+    printf("Ocorrência percentual de cada número em relação ao total:\n");
+    for (int i = 1; i <= P; i++) 
+    {
+        double percent = (double)occurrence[i] / totalNumbers * 100;
+        printf("Número %d: %.2f%% (Processado %d vezes)\n", i, percent, occurrence[i]);
     }
 
-    //Fechar todos os arquivos
-    for (int i = 0; i < N; ++i) {
-        fclose(fileArray[i]);
-    }
-
-    //Destruir mutexes
-    for (int i = 0; i <= MAX; ++i) {
+    // Destroi os mutex
+    for (int i = 0; i <= P; i++) 
+    {
         pthread_mutex_destroy(&mutexArray[i]);
     }
 
     return 0;
-
 }
