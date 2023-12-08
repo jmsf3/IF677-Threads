@@ -3,12 +3,12 @@
 #include <pthread.h>
 #include <time.h>
 
-#define N 5  // Número de arquivos
-#define P 10   // Número de elementos em cada arquivo
-#define T 3   // Número de threads
+#define N 5 // Número de arquivos
+#define P 10 // Número de elementos em cada arquivo
+#define T 3 // Número de threads
 #define MAX_NUM_PRODUCTS 10
 
-// Array de mutex para exclusão mútua refinada
+// Array de mutexes para exclusão mútua refinada
 pthread_mutex_t mutexArray[P + 1];
 
 // Mutex para exclusão mútua ao ler arquivos
@@ -44,14 +44,14 @@ void createFiles()
         FILE *file = fopen(filename, "w");
         if (file == NULL) 
         {
-            printf("Erro ao criar arquivo");
+            printf("Erro ao criar arquivo\n");
             exit(1);
         }
 
         int *randomList = malloc(numProducts * sizeof(int));
         if (randomList == NULL) 
         {
-            printf("Erro de alocação de memória");
+            printf("Erro de alocação de memória\n");
             exit(1);
         }
 
@@ -69,16 +69,18 @@ void createFiles()
 
 void *readNumbers(void *arg) 
 {
-    int threadIndex = *(int *)arg;
+    int threadIndex = *((int *) arg);
 
     for (int fileNumber = threadIndex + 1; fileNumber <= N; fileNumber += T) 
     {
         // Verifica se o arquivo já foi processado por outra thread
         pthread_mutex_lock(&fileMutex);
-        if (processedFiles[fileNumber - 1] == 1) {
+        if (processedFiles[fileNumber - 1] == 1) 
+        {
             pthread_mutex_unlock(&fileMutex);
             continue;
         }
+
         // Marca o arquivo como processado
         processedFiles[fileNumber - 1] = 1;
         pthread_mutex_unlock(&fileMutex);
@@ -86,13 +88,13 @@ void *readNumbers(void *arg)
         char filename[10];
         sprintf(filename, "%d.in", fileNumber);
 
-        // mutex para exclusão mútua ao ler arquivos
+        // Mutex para exclusão mútua ao ler arquivos
         pthread_mutex_lock(&fileMutex);
 
         FILE *file = fopen(filename, "r");
         if (file == NULL) 
         {
-            ("Erro ao abrir o arquivo");
+            printf("Erro ao abrir o arquivo\n");
             pthread_mutex_unlock(&fileMutex);
             pthread_exit(NULL);
         }
@@ -131,7 +133,7 @@ int main()
     pthread_t threads[T];
     int threadIndexes[T];  // Índices para identificar cada thread
 
-    // Inicializa os mutex para cada posição do array de ocorrências
+    // Inicializa os mutexes para cada posição do array de ocorrências
     for (int i = 0; i <= P; i++) 
     {
         pthread_mutex_init(&mutexArray[i], NULL);
@@ -165,11 +167,11 @@ int main()
     printf("Ocorrência percentual de cada número em relação ao total:\n");
     for (int i = 1; i <= P; i++) 
     {
-        double percent = (double)occurrence[i] / totalNumbers * 100;
+        double percent = (double) occurrence[i] / totalNumbers * 100;
         printf("Número %d: %.2f%% (Processado %d vezes)\n", i, percent, occurrence[i]);
     }
 
-    // Destroi os mutex
+    // Destrói os mutexes
     for (int i = 0; i <= P; i++) 
     {
         pthread_mutex_destroy(&mutexArray[i]);

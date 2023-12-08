@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 #define n 4
-#define P 20
+#define P 5
 
 double A[n][n] = {{10, -1, 2, 0}, {-1, 11, -1, 3}, {2, -1, 10, -1}, {0, 3, -1, 8}};
 double prev_x[n] = {1, 1, 1, 1};
@@ -39,6 +39,7 @@ void *jacobi(void *args)
             }
             
             x[i] = (b[i] - sigma) / A[i][i];
+            // printf("[INFO] [jacobi_%d]: For k = %d, x%d = %.2f\n", id, k, i, x[i]);
         }
 
         // Wait for the other threads to proceed
@@ -59,7 +60,7 @@ void *jacobi(void *args)
 int main(int argc, char *argv[])
 {
     // Parameter that determines the number of threads to be created
-    printf("How many threads do you wish to create? ");
+    printf("[INPUT] [main]: How many threads do you wish to create? ");
     scanf("%d", &N);
 
     // Initialize a barrier that is only released after all threads have been initialized
@@ -72,7 +73,7 @@ int main(int argc, char *argv[])
     // Initialize the Jacobi threads
     for (int i = 0; i < N; i++)
     {
-        printf("Initializing Jacobi thread %d...\n", i);
+        printf("[INFO] [main]: Initializing Jacobi thread %d...\n", i);
 
         jacobi_id[i] = (int *) malloc(sizeof(int));
         *jacobi_id[i] = i;
@@ -81,7 +82,7 @@ int main(int argc, char *argv[])
 
         if (status != 0)
         {
-            printf("ERROR: pthread_create returned error code %d\n", status);
+            printf("[ERROR] [main]: pthread_create returned error code %d\n", status);
             exit(-1);
         }
     }
@@ -93,7 +94,7 @@ int main(int argc, char *argv[])
 
         if (status != 0)
         {
-            printf("ERROR: pthread_join returned error code %d\n", status);
+            printf("[ERROR] [main]: pthread_join returned error code %d\n", status);
             exit(-1);
         }
     }
@@ -105,10 +106,12 @@ int main(int argc, char *argv[])
     }
 
     // Show the result
+    printf("[INFO] [main]: ");
     for (int i = 0; i < n; i++)
     {
-        printf("x%d = %.2f\n", i + 1, x[i]);
+        printf("x%d = %.2f ", i + 1, x[i]);
     }
+    printf("\n");
 
     pthread_barrier_destroy(&barrier);
     pthread_exit(NULL);

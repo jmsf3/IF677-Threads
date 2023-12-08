@@ -38,11 +38,11 @@ void *robot(void *args)
             pthread_cond_wait(&full, &mutex);
         }
 
-        // Take an order from the queue
-        int order = queue[head];
+        // Take a request from the queue
+        int request = queue[head];
         length--; head++;
 
-        printf("Order from table %d taken by robot %d!\n", order, id);
+        printf("[INFO] [robot_%d]: Table %d's request granted!\n", id, request);
         sleep(1);
 
         if (head == Q) 
@@ -52,7 +52,7 @@ void *robot(void *args)
 
         if (length == Q - 1)
         {
-            pthread_cond_signal(&empty);
+            pthread_cond_broadcast(&empty);
         }
 
         // Unlock the mutex
@@ -80,11 +80,11 @@ void *table(void *args)
             pthread_cond_wait(&empty, &mutex);
         }
 
-        // Add an order to the queue
+        // Add a request to the queue
         queue[tail] = id;
         length++; tail++;
 
-        printf("Order from table %d added to the queue!\n", id);
+        printf("[INFO] [table_%d]: Request added to the queue!\n", id);
         sleep(1);
 
         if (tail == Q)
@@ -94,7 +94,7 @@ void *table(void *args)
     
         if (length == 1)
         { 
-            pthread_cond_signal(&full);
+            pthread_cond_broadcast(&full);
         }
 
         // Unlock the mutex
@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
     // Initialize the robot threads
     for (int i = 0; i < N; i++)
     {
-        printf("Initializing robot thread %d...\n", i);
+        printf("[INFO] [main]: Initializing robot thread %d...\n", i);
 
         robot_id[i] = (int *) malloc(sizeof(int));
         *robot_id[i] = i;
@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
 
         if (status != 0)
         {
-            printf("ERROR: pthread_create returned error code %d\n", status);
+            printf("[ERROR] [main]: pthread_create returned error code %d\n", status);
             exit(-1);
         }
     }
@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
     // Initialize the table threads
     for (int i = 0; i < M; i++)
     {
-        printf("Initializing table thread %d...\n", i);
+        printf("[INFO] [main]: Initializing table thread %d...\n", i);
 
         table_id[i] = (int *) malloc(sizeof(int));
         *table_id[i] = i;
@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
 
         if (status != 0)
         {
-            printf("ERROR: pthread_create returned error code %d\n", status);
+            printf("[ERROR] [main]: pthread_create returned error code %d\n", status);
             exit(-1);
         }
     }
@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
 
         if (status != 0)
         {
-            printf("ERROR: pthread_join returned error code %d\n", status);
+            printf("[ERROR] [main]: pthread_join returned error code %d\n", status);
             exit(-1);
         }
     }
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
 
         if (status != 0)
         {
-            printf("ERROR: pthread_join returned error code %d\n", status);
+            printf("[ERROR] [main]: pthread_join returned error code %d\n", status);
             exit(-1);
         }
     }
