@@ -8,6 +8,7 @@
 #define T 3   // Número de threads
 #define MAX_NUM_PRODUCTS 10
 
+
 // Array de mutex para exclusão mútua refinada
 pthread_mutex_t mutexArray[P + 1];
 
