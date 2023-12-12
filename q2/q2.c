@@ -11,14 +11,8 @@
 // Array de mutex para exclusão mútua refinada
 pthread_mutex_t mutexArray[P + 1];
 
-// Mutex para exclusão mútua ao ler arquivos
-pthread_mutex_t fileMutex = PTHREAD_MUTEX_INITIALIZER;
-
 // Array para armazenar as ocorrências de cada número
 int occurrence[P + 1] = {0};
-
-// Array de flags para saber quais arquivos já foram processados
-int processedFiles[N] = {0};
 
 int totalNumbers = 0;  
 
@@ -73,27 +67,13 @@ void *readNumbers(void *arg)
 
     for (int fileNumber = threadIndex + 1; fileNumber <= N; fileNumber += T) 
     {
-        // Verifica se o arquivo já foi processado por outra thread
-        pthread_mutex_lock(&fileMutex);
-        if (processedFiles[fileNumber - 1] == 1) {
-            pthread_mutex_unlock(&fileMutex);
-            continue;
-        }
-        // Marca o arquivo como processado
-        processedFiles[fileNumber - 1] = 1;
-        pthread_mutex_unlock(&fileMutex);
-
         char filename[10];
         sprintf(filename, "%d.in", fileNumber);
-
-        // mutex para exclusão mútua ao ler arquivos
-        pthread_mutex_lock(&fileMutex);
 
         FILE *file = fopen(filename, "r");
         if (file == NULL) 
         {
             ("Erro ao abrir o arquivo");
-            pthread_mutex_unlock(&fileMutex);
             pthread_exit(NULL);
         }
 
@@ -115,7 +95,7 @@ void *readNumbers(void *arg)
         fclose(file);
 
         // Libera o mutex após ler o arquivo
-        pthread_mutex_unlock(&fileMutex);
+        //pthread_mutex_unlock(&fileMutex);
     }
 
     pthread_exit(NULL);
