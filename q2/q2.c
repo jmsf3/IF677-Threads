@@ -1,21 +1,20 @@
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
-#include <time.h>
 
-#define N 5  // Número de arquivos
-#define P 10   // Número de elementos em cada arquivo
-#define T 3   // Número de threads
-#define MAX_NUM_PRODUCTS 10
+#define N 5 // Número de arquivos
+#define P 5 // Número de produtos
+#define T 3 // Número de threads
+#define MAX_NUM_PRODUCTS 10 // Número máximo de produtos por arquivo
 
-
-// Array de mutex para exclusão mútua refinada
+// Array de mutexes para exclusão mútua refinada
 pthread_mutex_t mutexArray[P + 1];
 
-// Array para armazenar as ocorrências de cada número
+// Array para armazenar as ocorrências de cada produto
 int occurrence[P + 1] = {0};
 
-int totalNumbers = 0;  
+// Número total de produtos lidos
+int totalProducts = 0;  
 
 void generateRandomList(int *list, int size) 
 {
@@ -39,15 +38,15 @@ void createFiles()
         FILE *file = fopen(filename, "w");
         if (file == NULL) 
         {
-            printf("Erro ao criar arquivo");
-            exit(1);
+            printf("Erro ao criar arquivo\n");
+            exit(-1);
         }
 
         int *randomList = malloc(numProducts * sizeof(int));
         if (randomList == NULL) 
         {
-            printf("Erro de alocação de memória");
-            exit(1);
+            printf("Erro de alocação de memória\n");
+            exit(-1);
         }
 
         generateRandomList(randomList, numProducts);
@@ -74,11 +73,11 @@ void *readNumbers(void *arg)
         FILE *file = fopen(filename, "r");
         if (file == NULL) 
         {
-            ("Erro ao abrir o arquivo");
-            pthread_exit(NULL);
+            ("Erro ao abrir o arquivo\n");
+            exit(-1);
         }
 
-        // Lê os números do arquivo
+        // Lê os produtos do arquivo
         int number;
         while (fscanf(file, "%d", &number) == 1) 
         {
@@ -87,16 +86,13 @@ void *readNumbers(void *arg)
 
             // Atualiza a quantidade do produto no array de ocorrências
             occurrence[number]++;
-            totalNumbers++;  // Incrementa o total de números lidos
+            totalProducts++;  // Incrementa o total de produtos lidos
 
             // Libera o mutex correspondente à posição do array de ocorrências
             pthread_mutex_unlock(&mutexArray[number]);
         }
 
         fclose(file);
-
-        // Libera o mutex após ler o arquivo
-        //pthread_mutex_unlock(&fileMutex);
     }
 
     pthread_exit(NULL);
@@ -112,7 +108,7 @@ int main()
     pthread_t threads[T];
     int threadIndexes[T];  // Índices para identificar cada thread
 
-    // Inicializa os mutex para cada posição do array de ocorrências
+    // Inicializa os mutexes para cada posição do array de ocorrências
     for (int i = 0; i <= P; i++) 
     {
         pthread_mutex_init(&mutexArray[i], NULL);
@@ -125,7 +121,7 @@ int main()
         if (pthread_create(&threads[i], NULL, readNumbers, (void *)&threadIndexes[i]) != 0) 
         {
             fprintf(stderr, "Erro ao criar a thread\n");
-            exit(1);
+            exit(-1);
         }
     }
 
@@ -135,22 +131,22 @@ int main()
         if (pthread_join(threads[i], NULL) != 0) 
         {
             fprintf(stderr, "Erro ao aguardar a thread\n");
-            exit(1);
+            exit(-1);
         }
     }
 
     // Imprime o total de números
-    printf("Total de números lidos: %d\n", totalNumbers);
+    printf("Total de produtos lidos: %d\n", totalProducts);
 
     // Imprime as ocorrências relativas ao total de números lidos
-    printf("Ocorrência percentual de cada número em relação ao total:\n");
+    printf("Ocorrência percentual de cada produto em relação ao total:\n");
     for (int i = 1; i <= P; i++) 
     {
-        double percent = (double)occurrence[i] / totalNumbers * 100;
-        printf("Número %d: %.2f%% (Processado %d vezes)\n", i, percent, occurrence[i]);
+        double percent = (double)occurrence[i] / totalProducts * 100;
+        printf("Produto %d: %.2f%% (Processado %d vezes)\n", i, percent, occurrence[i]);
     }
 
-    // Destroi os mutex
+    // Destrói os mutexes
     for (int i = 0; i <= P; i++) 
     {
         pthread_mutex_destroy(&mutexArray[i]);
