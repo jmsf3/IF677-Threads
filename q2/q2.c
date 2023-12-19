@@ -10,8 +10,8 @@
 // Array de mutexes para exclusão mútua refinada
 pthread_mutex_t mutexArray[P + 1];
 
-// Array para armazenar as ocorrências de cada produto
-int occurrence[P + 1] = {0};
+// Array para armazenar a frequência de cada produto
+int freqProducts[P + 1] = {0};
 
 // Número total de produtos lidos
 int totalProducts = 0;  
@@ -36,16 +36,19 @@ void createFiles()
 
         // Criar o arquivo
         FILE *file = fopen(filename, "w");
+
         if (file == NULL) 
         {
-            printf("Erro ao criar arquivo\n");
+            printf("[ERROR] [createFiles]: failed to create file %s\n", filename);
             exit(-1);
         }
 
+        // Gerar uma lista de números aleatórios
         int *randomList = malloc(numProducts * sizeof(int));
+
         if (randomList == NULL) 
         {
-            printf("Erro de alocação de memória\n");
+            printf("[ERROR] [createFiles]: failed to allocate memory\n");
             exit(-1);
         }
 
@@ -61,9 +64,9 @@ void createFiles()
     }
 }
 
-void *readNumbers(void *arg) 
+void *readFiles(void *args) 
 {
-    int threadIndex = *(int *)arg;
+    int threadIndex = *((int *) args);
 
     for (int fileNumber = threadIndex + 1; fileNumber <= N; fileNumber += T) 
     {
@@ -71,25 +74,27 @@ void *readNumbers(void *arg)
         sprintf(filename, "%d.in", fileNumber);
 
         FILE *file = fopen(filename, "r");
+
         if (file == NULL) 
         {
-            ("Erro ao abrir o arquivo\n");
+            printf("[ERROR] [createFiles]: failed to open file %s\n", filename);
             exit(-1);
         }
 
-        // Lê os produtos do arquivo
-        int number;
-        while (fscanf(file, "%d", &number) == 1) 
+        // Lê os produtos dos arquivos
+        int product;
+
+        while (fscanf(file, "%d", &product) != EOF) 
         {
-            // Adquire o mutex correspondente à posição do array de ocorrências
-            pthread_mutex_lock(&mutexArray[number]);
+            // Trava o mutex correspondente à posição do array de frequência
+            pthread_mutex_lock(&mutexArray[product]);
 
-            // Atualiza a quantidade do produto no array de ocorrências
-            occurrence[number]++;
-            totalProducts++;  // Incrementa o total de produtos lidos
+            // Atualiza a frequência do produto lido
+            freqProducts[product]++;
+            totalProducts++;
 
-            // Libera o mutex correspondente à posição do array de ocorrências
-            pthread_mutex_unlock(&mutexArray[number]);
+            // Libera o mutex correspondente à posição do array de frequência
+            pthread_mutex_unlock(&mutexArray[product]);
         }
 
         fclose(file);
@@ -103,47 +108,49 @@ int main()
     // Seed
     srand(time(NULL));
 
+    // Cria os arquivos
     createFiles();
 
+    // Cria as threads para ler os arquivos
     pthread_t threads[T];
-    int threadIndexes[T];  // Índices para identificar cada thread
+    int threadIndexes[T];
 
-    // Inicializa os mutexes para cada posição do array de ocorrências
+    // Inicializa os mutexes para cada posição do array de frequência
     for (int i = 0; i <= P; i++) 
     {
         pthread_mutex_init(&mutexArray[i], NULL);
     }
 
-    // Cria as threads e verifica erros
+    // Inicializa as threads
     for (int i = 0; i < T; i++) 
     {
         threadIndexes[i] = i;
-        if (pthread_create(&threads[i], NULL, readNumbers, (void *)&threadIndexes[i]) != 0) 
+
+        if (pthread_create(&threads[i], NULL, readFiles, (void *)&threadIndexes[i]) != 0) 
         {
-            fprintf(stderr, "Erro ao criar a thread\n");
+            printf("[ERROR] [main]: failed to create thread %d\n", i);
             exit(-1);
         }
     }
 
-    // Aguarda as threads terminarem
+    // Aguarda a finalização da execução de cada thread
     for (int i = 0; i < T; i++) 
     {
         if (pthread_join(threads[i], NULL) != 0) 
         {
-            fprintf(stderr, "Erro ao aguardar a thread\n");
+            printf("[ERROR] [main]: failed to join thread %d\n", i);
             exit(-1);
         }
     }
 
-    // Imprime o total de números
-    printf("Total de produtos lidos: %d\n", totalProducts);
+    // Imprime o total de produtos lidos
+    printf("[INFO] [main]: totalProducts = %d\n", totalProducts);
 
-    // Imprime as ocorrências relativas ao total de números lidos
-    printf("Ocorrência percentual de cada produto em relação ao total:\n");
+    // Imprime a frequência de cada produto em relação ao total de produtos lidos
     for (int i = 1; i <= P; i++) 
     {
-        double percent = (double)occurrence[i] / totalProducts * 100;
-        printf("Produto %d: %.2f%% (Processado %d vezes)\n", i, percent, occurrence[i]);
+        double percentage = (100.0 * freqProducts[i]) / totalProducts;
+        printf("[INFO] [main]: freqProducts[%d] / totalProducts = %.2f%%\n", i, percentage);
     }
 
     // Destrói os mutexes
