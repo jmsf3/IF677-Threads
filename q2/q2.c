@@ -77,7 +77,7 @@ void *readFiles(void *args)
 
         if (file == NULL) 
         {
-            printf("[ERROR] [createFiles]: failed to open file %s\n", filename);
+            printf("[ERROR] [readFiles]: failed to open file %s\n", filename);
             exit(-1);
         }
 
