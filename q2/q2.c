@@ -147,10 +147,10 @@ int main()
     printf("[INFO] [main]: totalProducts = %d\n", totalProducts);
 
     // Imprime a frequência de cada produto em relação ao total de produtos lidos
-    for (int i = 1; i <= P; i++) 
+    for (int i = 0; i <= P; i++) 
     {
         double percentage = (100.0 * freqProducts[i]) / totalProducts;
-        printf("[INFO] [main]: freqProducts[%d] / totalProducts = %.2f%%\n", i, percentage);
+        printf("[INFO] [main]: freqProducts[%d] / totalProducts = %5.2f%%\n", i, percentage);
     }
 
     // Destrói os mutexes
