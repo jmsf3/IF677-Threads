@@ -7,7 +7,7 @@
 #define NUM_TRAINS 10
 #define NUM_INTERSECTIONS 5
 #define MAX_NUM_TRAINS_PER_INTERSECTION 2
-#define TRAVERSAL_TIME_SECONDS 0.5
+#define TRAVERSAL_TIME_SECONDS 1
 
 int railway[NUM_INTERSECTIONS];
 pthread_mutex_t mutex[NUM_INTERSECTIONS];
@@ -33,7 +33,7 @@ void *train(void *args)
         }
         
         // Update the number of trains in the intersection
-        printf("[INFO] [train_%d]: Entering intersection %d\n", id, intersection + 1);
+        printf("[INFO] [train_%d]: Entering intersection %d!\n", id, intersection + 1);
         railway[intersection]++;
 
         // Unlock the mutex of the intersection
@@ -46,7 +46,7 @@ void *train(void *args)
         pthread_mutex_lock(&mutex[intersection]);
 
         // Update the number of trains in the intersection
-        printf("[INFO] [train_%d]: Leaving intersection %d\n", id, intersection + 1);
+        printf("[INFO] [train_%d]: Leaving intersection %d!\n", id, intersection + 1);
         railway[intersection]--;
 
         // Announce that the intersection is now available 
