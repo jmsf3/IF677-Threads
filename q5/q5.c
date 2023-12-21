@@ -94,7 +94,7 @@ void *sort(void *args)
     // Middle element of the array
     m = floor((l + r) / 2);
 
-    // Left Thread sort{l -> m} - Right Thread {m + 1 -> r}
+    // Left Thread sort{l -> m} - Right Thread sort{m + 1 -> r}
     pthread_t left, right;
 
     // New limits

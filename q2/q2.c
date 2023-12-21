@@ -30,20 +30,20 @@ void createFiles()
     {
         int numProducts = rand() % MAX_NUM_PRODUCTS + 1;
 
-        // Definir o caminho do arquivo
-        char filename[10];
-        sprintf(filename, "%d.in", x);
+        // Define o caminho do arquivo
+        char path[10];
+        sprintf(path, "%d.in", x);
 
-        // Criar o arquivo
-        FILE *file = fopen(filename, "w");
+        // Cria o arquivo
+        FILE *file = fopen(path, "w");
 
         if (file == NULL) 
         {
-            printf("[ERROR] [createFiles]: failed to create file %s\n", filename);
+            printf("[ERROR] [createFiles]: failed to create file %s\n", path);
             exit(-1);
         }
 
-        // Gerar uma lista de números aleatórios
+        // Gera uma lista de números aleatórios
         int *randomList = malloc(numProducts * sizeof(int));
 
         if (randomList == NULL) 
@@ -70,14 +70,14 @@ void *readFiles(void *args)
 
     for (int fileNumber = threadIndex + 1; fileNumber <= N; fileNumber += T) 
     {
-        char filename[10];
-        sprintf(filename, "%d.in", fileNumber);
+        char path[10];
+        sprintf(path, "%d.in", fileNumber);
 
-        FILE *file = fopen(filename, "r");
+        FILE *file = fopen(path, "r");
 
         if (file == NULL) 
         {
-            printf("[ERROR] [readFiles]: failed to open file %s\n", filename);
+            printf("[ERROR] [readFiles]: failed to open file %s\n", path);
             exit(-1);
         }
 

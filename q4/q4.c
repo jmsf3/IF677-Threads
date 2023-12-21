@@ -1,150 +1,164 @@
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 
-// Square matrix N * N
-#define N 3
+#define N 4
+
+// NxN matrix
 int matrix[N][N];
 
-// Variables
-int TOTAL_SUM;
+// Global variables
+int TOTAL_SUM = 0;
 int MAGIC_SQUARE = 1;
 
-// Function to organize the threads that check if its a magic square
+// Function that organizes the threads that check if the matrix is a magic square
 void *magic_square(void *args);
 
-// Function to add up all sum_columns
+// Function that calculates the sum of each row
+void *sum_rows(void *args);
+
+// Function that calculates the sum of each column
 void *sum_columns(void *args);
 
-// Function to add up all sum_row
-void *sum_row(void *args);
+// Function that calculates the sum of each diagonal
+void *sum_diagonals(void *args);
 
-// Function to add up both sum_diagonal
-void *sum_diagonal(void *args);
-
-// Mutex to change the value of the variable
+// Mutex that controls the access to the MAGIC_SQUARE global variable
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-int main(){
-
+int main()
+{
     // Variables
     int i, j;
 
-    // Matrix insertion loop
-    for(i = 0; i < N; i++){
+    // Matrix input
+    printf("[INPUT] [main]: Enter a %dx%d matrix:\n\n", N, N);
 
-        if(i == 0)
-            TOTAL_SUM = 0;
+    for (i = 0; i < N; i++)
+    {
+        printf("                ");
 
-        for(j = 0; j < N; j++){
+        for (j = 0; j < N; j++)
+        {
             scanf("%d", &matrix[i][j]);
-            if(i == 0) TOTAL_SUM += matrix[i][j];
+
+            if (i == 0)
+            {
+                TOTAL_SUM += matrix[i][j];
+            }
         }
     }
-    
-    // Creating main thread
-    pthread_t magicsquare;
+    printf("\n");
 
-    int status = pthread_create(&magicsquare, NULL, magic_square, NULL);
-    if(status){
-        printf("ERROR %d: MAIN COULD NOT CREATE THREAD\n", status);
+    // Create the magic square thread
+    pthread_t magic_square_thread;
+    int status = pthread_create(&magic_square_thread, NULL, magic_square, NULL);
+
+    if (status != 0)
+    {
+        printf("[ERROR] [main]: pthread_create returned error code %d\n", status);
         exit(-1);
     }
 
+    // Wait for all the threads to finish their execution
+    pthread_join(magic_square_thread, NULL);
 
-    // Waiting for all threads to be executed
-    pthread_join(magicsquare, NULL);
-
-    // Print result
-    if(MAGIC_SQUARE)
-        printf("Magic square\n");
+    // Print the result
+    if (MAGIC_SQUARE)
+        printf("[INFO] [main]: It's a magic square!\n");
     else
-        printf("Not magic square\n");
+        printf("[INFO] [main]: It's not a magic square :(\n");
 
-    // Destroying mutex
+    // Destroy the mutex
     pthread_mutex_destroy(&mutex);
 
-    // Exit thread
     pthread_exit(NULL);
 }
 
-void *magic_square(void *args){
-
-    // Create threads to execute in sum_columns, sum_row and sum_diagonal
+void *magic_square(void *args)
+{
+    // Create 3 threads to execute the 'sum_columns', 'sum_rows' and 'sum_diagonals' functions
     pthread_t column, row, diagonal;
-    
-    // Creating threads
+
+    // Create threads
     pthread_create(&column, NULL, sum_columns, NULL);
     pthread_create(&column, NULL, sum_columns, NULL);
-    pthread_create(&diagonal, NULL, sum_diagonal, NULL);
-    
-    // Waiting all threads to end
+    pthread_create(&diagonal, NULL, sum_diagonals, NULL);
+
+    // Wait for all the threads to finish their execution
     pthread_join(column, NULL);
     pthread_join(row, NULL);
     pthread_join(diagonal, NULL);
 
-    // Exit thread
     pthread_exit(NULL);
 }
 
-void *sum_columns(void *args){
-
+void *sum_columns(void *args)
+{
     int sum;
 
-    // Sums all elements in a column
-    for(int i = 0; i < N && MAGIC_SQUARE == 1; i++){
-        
+    // Sum all the elements in a column
+    for (int i = 0; i < N && MAGIC_SQUARE == 1; i++)
+    {
         sum = 0;
-        for(int j = 0; j < N && MAGIC_SQUARE == 1; j++){
+
+        for (int j = 0; j < N && MAGIC_SQUARE == 1; j++)
+        {
             sum += matrix[j][i];
         }
 
-        // Change the variable
-        if(sum != TOTAL_SUM && MAGIC_SQUARE == 1){
+        // Check if the matrix is not a magic square
+        if (sum != TOTAL_SUM && MAGIC_SQUARE == 1)
+        {
             pthread_mutex_lock(&mutex);
             MAGIC_SQUARE = 0;
             pthread_mutex_unlock(&mutex);
-        } 
+        }
     }
 
-    // Exit thread
     pthread_exit(NULL);
 }
 
-void *sum_row(void *args){
-
+void *sum_rows(void *args)
+{
     int sum;
 
-    // Sums all elements in a row
-    for(int i = 0; i < N && MAGIC_SQUARE == 1; i++){
-        
+    // Sum all the elements in a row
+    for (int i = 0; i < N && MAGIC_SQUARE == 1; i++)
+    {
+
         sum = 0;
-        for(int j = 0; j < N && MAGIC_SQUARE == 1; j++){
+
+        for (int j = 0; j < N && MAGIC_SQUARE == 1; j++)
+        {
             sum += matrix[i][j];
         }
 
-        // Change the variable
-        if(sum != TOTAL_SUM && MAGIC_SQUARE == 1){
+        // Check if the matrix is not a magic square
+        if (sum != TOTAL_SUM && MAGIC_SQUARE == 1)
+        {
             pthread_mutex_lock(&mutex);
             MAGIC_SQUARE = 0;
             pthread_mutex_unlock(&mutex);
         }
     }
 
-    // Exit thread
     pthread_exit(NULL);
 }
 
-void *sum_diagonal(void *args){
+void *sum_diagonals(void *args)
+{
+    int sum = 0;
 
-    int sum;
-
-    // Sums all elements in main diagonal
-    for(int i = 0; i < N && MAGIC_SQUARE == 1; i++)
+    // Sum all the elements in the main diagonal
+    for (int i = 0; i < N && MAGIC_SQUARE == 1; i++)
+    {
         sum += matrix[i][i];
-    
-    // Change the variable
-    if(sum != TOTAL_SUM && MAGIC_SQUARE == 1){
+    }
+
+    // Check if the matrix is not a magic square
+    if (sum != TOTAL_SUM && MAGIC_SQUARE == 1)
+    {
         pthread_mutex_lock(&mutex);
         MAGIC_SQUARE = 0;
         pthread_mutex_unlock(&mutex);
@@ -152,17 +166,19 @@ void *sum_diagonal(void *args){
 
     sum = 0;
 
-    // Sums all elements in inverse diagonal
-    for(int i = 0; i < N && MAGIC_SQUARE == 1; i++)
+    // Sums all elements in the antidiagonal
+    for (int i = 0; i < N && MAGIC_SQUARE == 1; i++)
+    {
         sum += matrix[(N - 1) - i][i];
-    
-    // Change the variable
-    if(sum != TOTAL_SUM && MAGIC_SQUARE == 1){
+    }
+
+    // Check if the matrix is not a magic square    
+    if (sum != TOTAL_SUM && MAGIC_SQUARE == 1)
+    {
         pthread_mutex_lock(&mutex);
         MAGIC_SQUARE = 0;
         pthread_mutex_unlock(&mutex);
     }
 
-    // Exit thread
     pthread_exit(NULL);
 }
