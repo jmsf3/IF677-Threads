@@ -1,52 +1,42 @@
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 
-#define MATRIX_SIZE 4
+#define M 2
+#define N 2
+#define P 2
 #define NUM_THREADS 4
 
-// Defina a estrutura para um vetor esparso
-typedef struct {
+typedef struct
+{
     int size;
-    int* indices;
-    double* values;
+    int *index;
+    double *value;
 } SparseVector;
 
-// Defina a estrutura para uma matriz esparsa
-typedef struct {
-    int rows;
-    int cols;
-    SparseVector* rows_data;
-} SparseMatrix;
+SparseVector sparseMatrixA[M];
+SparseVector sparseMatrixB[N];
+double denseMatrixC[N][P];
+double denseVectorV[N];
 
-// Variáveis globais para as matrizes esparsas e vetor denso
-SparseMatrix sparseMatrix1;
-SparseMatrix sparseMatrix2;
-SparseVector denseVector = {MATRIX_SIZE, NULL, NULL};
+double multiplySparseMatricesResult[M][P];
+double multiplySparseMatrixDenseVectorResult[M];
+double multiplySparseMatrixDenseMatrixResult[M][P];
 
-// Variáveis globais para o resultado e controle de threads
-double* result_multiply_vector;
-double** result_multiply_matrix;
-pthread_t threads[NUM_THREADS];
-int thread_args[NUM_THREADS];
+void *multiplySparseMatrices(void *args)
+{
+    int id = *((int *) args);
 
-// Função para multiplicação de matriz esparsa por vetor denso (paralela)
-void* parallelSparseMatrixVectorMultiply(void* arg) {
-    int thread_id = *(int*)arg;
+    for (int i = id; i < M; i += NUM_THREADS)
+    {
+        for (int j = 0; j < sparseMatrixA[i].size; j++)
+        {
+            int k = sparseMatrixA[i].index[j];
 
-    // Calcular a faixa de linhas a serem processadas por esta thread
-    int start_row = (MATRIX_SIZE / NUM_THREADS) * thread_id;
-    int end_row = (thread_id == (NUM_THREADS - 1)) ? MATRIX_SIZE : start_row + (MATRIX_SIZE / NUM_THREADS);
-
-    // Multiplicação de matriz esparsa por vetor denso
-    for (int i = start_row; i < end_row; i++) {
-        result_multiply_vector[i] = 0.0;
-
-        for (int j = 0; j < sparseMatrix1.rows; j++) {
-            for (int k = 0; k < sparseMatrix1.rows_data[i].size; ++k) {
-                if (sparseMatrix1.rows_data[i].indices[k] == j) {
-                    result_multiply_vector[i] += sparseMatrix1.rows_data[i].values[k] * denseVector.values[j];
-                }
+            for (int m = 0; m < sparseMatrixB[k].size; m++)
+            {
+                int n = sparseMatrixB[k].index[m];
+                multiplySparseMatricesResult[i][n] += sparseMatrixA[i].value[j] * sparseMatrixB[k].value[m];
             }
         }
     }
@@ -54,30 +44,34 @@ void* parallelSparseMatrixVectorMultiply(void* arg) {
     pthread_exit(NULL);
 }
 
-// Função para multiplicação de duas matrizes esparsas (paralela)
-void* parallelSparseMatrixMultiply(void* arg) {
-    int thread_id = *(int*)arg;
+void *multiplySparseMatrixDenseVector(void *args)
+{
+    int id = *((int *) args);
 
-    // Calcular a faixa de linhas a serem processadas por esta thread
-    int start_row = (MATRIX_SIZE / NUM_THREADS) * thread_id;
-    int end_row = (thread_id == (NUM_THREADS - 1)) ? MATRIX_SIZE : start_row + (MATRIX_SIZE / NUM_THREADS);
+    for (int i = id; i < M; i += NUM_THREADS)
+    {
+        for (int j = 0; j < sparseMatrixA[i].size; j++)
+        {
+            int k = sparseMatrixA[i].index[j];
+            multiplySparseMatrixDenseVectorResult[i] += sparseMatrixA[i].value[j] * denseVectorV[k];
+        }
+    }
 
-    // Multiplicação de duas matrizes esparsas
-    for (int i = start_row; i < end_row; i++) {
-        for (int j = 0; j < sparseMatrix2.cols; j++) {
-            result_multiply_matrix[i][j] = 0.0;
+    pthread_exit(NULL);
+}
 
-            for (int k = 0; k < sparseMatrix1.rows; ++k) {
-                for (int l = 0; l < sparseMatrix1.rows_data[i].size; ++l) {
-                    int col_index = sparseMatrix1.rows_data[i].indices[l];
-                    double value1 = sparseMatrix1.rows_data[i].values[l];
+void *multiplySparseMatrixDenseMatrix(void *args)
+{
+    int id = *((int *) args);
 
-                    for (int m = 0; m < sparseMatrix2.rows_data[k].size; ++m) {
-                        if (sparseMatrix2.rows_data[k].indices[m] == j && col_index == k) {
-                            result_multiply_matrix[i][j] += value1 * sparseMatrix2.rows_data[k].values[m];
-                        }
-                    }
-                }
+    for (int i = id; i < M; i+= NUM_THREADS)
+    {
+        for (int j = 0; j < P; j++)
+        {
+            for (int k = 0; k < sparseMatrixA[i].size; k++)
+            {
+                int m = sparseMatrixA[i].index[k];
+                multiplySparseMatrixDenseMatrixResult[i][j] += sparseMatrixA[i].value[k] * denseMatrixC[m][j];
             }
         }
     }
@@ -85,175 +79,238 @@ void* parallelSparseMatrixMultiply(void* arg) {
     pthread_exit(NULL);
 }
 
-// Função para multiplicação de matriz esparsa por matriz densa (paralela)
-void* parallelSparseMatrixDenseMultiply(void* arg) {
-    int thread_id = *(int*)arg;
+int main()
+{
+    // Inicializar a matriz esparsa A
+    printf("[INPUT] [main]: Enter a %dx%d matrix (A)\n\n", M, N);
 
-    // Calcular a faixa de linhas a serem processadas por esta thread
-    int start_row = (MATRIX_SIZE / NUM_THREADS) * thread_id;
-    int end_row = (thread_id == (NUM_THREADS - 1)) ? MATRIX_SIZE : start_row + (MATRIX_SIZE / NUM_THREADS);
+    for (int i = 0; i < M; i++)
+    {
+        // Printar o recuo da linha
+        printf("                ");
+    
+        // Inicializar o i-ésimo vetor esparso
+        sparseMatrixA[i].size = 0;
+        sparseMatrixA[i].index = NULL;
+        sparseMatrixA[i].value = NULL;
 
-    // Multiplicação de matriz esparsa por matriz densa
-    for (int i = start_row; i < end_row; i++) {
-        for (int j = 0; j < MATRIX_SIZE; j++) {
-            result_multiply_matrix[i][j] = 0.0;
+        for (int j = 0; j < N; j++)
+        {
+            double val;
+            scanf("%lf", &val);
 
-            for (int k = 0; k < sparseMatrix1.rows; ++k) {
-                for (int l = 0; l < sparseMatrix1.rows_data[i].size; ++l) {
-                    int col_index = sparseMatrix1.rows_data[i].indices[l];
-                    double value1 = sparseMatrix1.rows_data[i].values[l];
+            if (val != 0.0)
+            {
+                int size = sparseMatrixA[i].size;
+                int *index = sparseMatrixA[i].index;
+                double *value = sparseMatrixA[i].value;
 
-                    result_multiply_matrix[i][j] += value1 * denseVector.values[col_index];
+                sparseMatrixA[i].index = (int *) realloc(index, (size + 1) * sizeof(int));
+                sparseMatrixA[i].value = (double *) realloc(value, (size + 1) * sizeof(double));
+
+                if (sparseMatrixA[i].index == NULL || sparseMatrixA[i].value == NULL)
+                {
+                    printf("[ERROR] [main]: failed to allocate memory\n");
+                    exit(-1);
                 }
+
+                sparseMatrixA[i].index[size] = j;
+                sparseMatrixA[i].value[size] = val;
+
+                sparseMatrixA[i].size++;
             }
         }
     }
 
-    pthread_exit(NULL);
-}
-
-int main() {
-    // Inicialize a primeira matriz esparsa (usuário insere manualmente)
-    sparseMatrix1.rows = MATRIX_SIZE;
-    sparseMatrix1.cols = MATRIX_SIZE;
-    sparseMatrix1.rows_data = (SparseVector*)malloc(MATRIX_SIZE * sizeof(SparseVector));
-
-    printf("Insira os elementos da primeira matriz esparsa:\n");
-    for (int i = 0; i < MATRIX_SIZE; i++) {
-        sparseMatrix1.rows_data[i].size = 0;  // Inicializa o tamanho do vetor esparso
-
-        printf("Linha %d (separados por espaço): ", i);
-        for (int j = 0; j < MATRIX_SIZE; j++) {
-            double value;
-            scanf("%lf", &value);
-
-            if (value != 0.0) {
-                sparseMatrix1.rows_data[i].indices = (int*)realloc(sparseMatrix1.rows_data[i].indices, (sparseMatrix1.rows_data[i].size + 1) * sizeof(int));
-                sparseMatrix1.rows_data[i].values = (double*)realloc(sparseMatrix1.rows_data[i].values, (sparseMatrix1.rows_data[i].size + 1) * sizeof(double));
-
-                sparseMatrix1.rows_data[i].indices[sparseMatrix1.rows_data[i].size] = j;
-                sparseMatrix1.rows_data[i].values[sparseMatrix1.rows_data[i].size] = value;
-
-                sparseMatrix1.rows_data[i].size++;
-            }
-        }
-    }
-
-    // Inicialize a segunda matriz esparsa (usuário insere manualmente)
-    sparseMatrix2.rows = MATRIX_SIZE;
-    sparseMatrix2.cols = MATRIX_SIZE;
-    sparseMatrix2.rows_data = (SparseVector*)malloc(MATRIX_SIZE * sizeof(SparseVector));
-
-    printf("Insira os elementos da segunda matriz esparsa:\n");
-    for (int i = 0; i < MATRIX_SIZE; i++) {
-        sparseMatrix2.rows_data[i].size = 0;  // Inicializa o tamanho do vetor esparso
-
-        printf("Linha %d (separados por espaço): ", i);
-        for (int j = 0; j < MATRIX_SIZE; j++) {
-            double value;
-            scanf("%lf", &value);
-
-            if (value != 0.0) {
-                sparseMatrix2.rows_data[i].indices = (int*)realloc(sparseMatrix2.rows_data[i].indices, (sparseMatrix2.rows_data[i].size + 1) * sizeof(int));
-                sparseMatrix2.rows_data[i].values = (double*)realloc(sparseMatrix2.rows_data[i].values, (sparseMatrix2.rows_data[i].size + 1) * sizeof(double));
-
-                sparseMatrix2.rows_data[i].indices[sparseMatrix2.rows_data[i].size] = j;
-                sparseMatrix2.rows_data[i].values[sparseMatrix2.rows_data[i].size] = value;
-
-                sparseMatrix2.rows_data[i].size++;
-            }
-        }
-    }
-
-    // Inicialize o vetor denso (usuário insere manualmente)
-    denseVector.indices = (int*)malloc(MATRIX_SIZE * sizeof(int));
-    denseVector.values = (double*)malloc(MATRIX_SIZE * sizeof(double));
-    printf("Insira os elementos do vetor denso (separados por espaço): ");
-    for (int i = 0; i < MATRIX_SIZE; i++) {
-        denseVector.indices[i] = i;
-        scanf("%lf", &denseVector.values[i]);
-    }
-
-    // Aloque memória para os resultados
-    result_multiply_vector = (double*)malloc(MATRIX_SIZE * sizeof(double));
-    result_multiply_matrix = (double**)malloc(MATRIX_SIZE * sizeof(double*));
-    for (int i = 0; i < MATRIX_SIZE; i++) {
-        result_multiply_matrix[i] = (double*)malloc(MATRIX_SIZE * sizeof(double));
-    }
-
-    // Crie threads para realizar as multiplicações em paralelo
-    for (int i = 0; i < NUM_THREADS; i++) {
-        thread_args[i] = i;
-        pthread_create(&threads[i], NULL, parallelSparseMatrixVectorMultiply, (void*)&thread_args[i]);
-    }
-
-    // Aguarde até que todas as threads da multiplicação de matriz esparsa por vetor denso terminem
-    for (int i = 0; i < NUM_THREADS; i++) {
-        pthread_join(threads[i], NULL);
-    }
-
-    // Exiba o resultado da multiplicação de matriz esparsa por vetor denso
-    printf("Resultado da multiplicação de matriz esparsa por vetor denso:\n");
-    for (int i = 0; i < MATRIX_SIZE; i++) {
-        printf("%.2f ", result_multiply_vector[i]);
-    }
     printf("\n");
 
-    // Crie threads para realizar as multiplicações em paralelo
-    for (int i = 0; i < NUM_THREADS; i++) {
-        thread_args[i] = i;
-        pthread_create(&threads[i], NULL, parallelSparseMatrixMultiply, (void*)&thread_args[i]);
-    }
+    // Menu
+    int operation = -1;
+    printf("[INPUT] [main]: What operation would you like to do?\n\n");
 
-    // Aguarde até que todas as threads da multiplicação de duas matrizes esparsas terminem
-    for (int i = 0; i < NUM_THREADS; i++) {
-        pthread_join(threads[i], NULL);
-    }
+    printf("                1. Multiply A by a dense vector V\n");
+    printf("                2. Multiply A by a sparse matrix B\n");
+    printf("                3. Multiply A by a dense matrix C\n\n");
 
-    // Exiba o resultado da multiplicação de duas matrizes esparsas
-    printf("Resultado da multiplicação de duas matrizes esparsas:\n");
-    for (int i = 0; i < MATRIX_SIZE; i++) {
-        for (int j = 0; j < MATRIX_SIZE; j++) {
-            printf("%.2f ", result_multiply_matrix[i][j]);
+    printf("                "); 
+    scanf("%d", &operation); 
+    printf("\n");
+    
+    if (operation == 1) // Multiplicação por vetor denso
+    {
+        printf("[INPUT] [main]: Enter a %d-dimensional vector (V)\n\n", N);
+
+        // Printar o recuo da linha
+        printf("                ");
+
+        // Inicializar o vetor denso
+        for (int i = 0; i < N; i++)
+        {
+            scanf("%lf", &denseVectorV[i]);
         }
+
         printf("\n");
     }
+    else if (operation == 2) // Multiplicação por matriz esparsa
+    {
+        printf("[INPUT] [main]: Enter a %dx%d matrix (B)\n\n", N, P);
 
-    // Crie threads para realizar as multiplicações em paralelo
-    for (int i = 0; i < NUM_THREADS; i++) {
-        thread_args[i] = i;
-        pthread_create(&threads[i], NULL, parallelSparseMatrixDenseMultiply, (void*)&thread_args[i]);
-    }
+        for (int i = 0; i < N; i++)
+        {
+            // Printar o recuo da linha
+            printf("                ");
 
-    // Aguarde até que todas as threads da multiplicação de matriz esparsa por matriz densa terminem
-    for (int i = 0; i < NUM_THREADS; i++) {
-        pthread_join(threads[i], NULL);
-    }
+            // Inicializar o i-ésimo vetor esparso
+            sparseMatrixB[i].size = 0;
+            sparseMatrixB[i].index = NULL;
+            sparseMatrixB[i].value = NULL;
 
-    // Exiba o resultado da multiplicação de matriz esparsa por matriz densa
-    printf("Resultado da multiplicação de matriz esparsa por matriz densa:\n");
-    for (int i = 0; i < MATRIX_SIZE; i++) {
-        for (int j = 0; j < MATRIX_SIZE; j++) {
-            printf("%.2f ", result_multiply_matrix[i][j]);
+            for (int j = 0; j < P; j++)
+            {
+                double val;
+                scanf("%lf", &val);
+
+                if (val != 0.0)
+                {
+                    int size = sparseMatrixB[i].size;
+                    int *index = sparseMatrixB[i].index;
+                    double *value = sparseMatrixB[i].value;
+
+                    sparseMatrixB[i].index = (int *) realloc(index, (size + 1) * sizeof(int));
+                    sparseMatrixB[i].value = (double *) realloc(value, (size + 1) * sizeof(double));
+
+                    if (sparseMatrixB[i].index == NULL || sparseMatrixB[i].value == NULL)
+                    {
+                        printf("[ERROR] [main]: failed to allocate memory\n");
+                        exit(-1);
+                    }
+
+                    sparseMatrixB[i].index[size] = j;
+                    sparseMatrixB[i].value[size] = val;
+
+                    sparseMatrixB[i].size++;
+                }
+            }
         }
+        
         printf("\n");
     }
+    else if (operation == 3) // Multiplicação por matriz densa
+    {
+        printf("[INPUT] [main]: Enter a %dx%d matrix (C)\n\n", N, P);
 
-    // Libere a memória alocada
-    free(result_multiply_vector);
-    free(denseVector.indices);
-    free(denseVector.values);
+        // Inicializar a matriz densa
+        for (int i = 0; i < N; i++)
+        {
+            // Printar o recuo da linha
+            printf("                ");
 
-    for (int i = 0; i < MATRIX_SIZE; i++) {
-        free(sparseMatrix1.rows_data[i].indices);
-        free(sparseMatrix1.rows_data[i].values);
-        free(sparseMatrix2.rows_data[i].indices);
-        free(sparseMatrix2.rows_data[i].values);
-        free(result_multiply_matrix[i]);
+            for (int j = 0; j < P; j++)
+            {
+                scanf("%lf", &denseMatrixC[i][j]);
+            }
+        }
+
+        printf("\n");
     }
-    free(sparseMatrix1.rows_data);
-    free(sparseMatrix2.rows_data);
-    free(result_multiply_matrix);
+    else // Operação inválida
+    {
+        printf("[ERROR] [main]: %d is an invalid operation\n", operation);
+        exit(-1);
+    }
+    
+    // Criar as threads para a realização da operação escolhida
+    int thread_id[NUM_THREADS];
+    pthread_t threads[NUM_THREADS];
+    void *functions[3] = {multiplySparseMatrixDenseVector, multiplySparseMatrices, multiplySparseMatrixDenseMatrix};
 
-    return 0;
+    // Inicializar as threads
+    for (int i = 0; i < NUM_THREADS; i++)
+    {
+        thread_id[i] = i;
+        int status = pthread_create(&threads[i], NULL, functions[operation - 1], (void *) &thread_id[i]);
+
+        if (status != 0)
+        {
+            printf("[ERROR] [main]: pthread_create returned error code %d\n", status);
+            exit(-1);
+        }
+    }
+
+    // Aguardar a finalização da execução das threads
+    for (int i = 0; i < NUM_THREADS; i++)
+    {
+        int status = pthread_join(threads[i], NULL);
+
+        if (status != 0)
+        {
+            printf("[ERROR] [main]: pthread_join returned error code %d\n", status);
+            exit(-1);
+        }
+    }   
+
+    // Exibir os resultados
+    if (operation == 1)
+    {
+        printf("[INFO] [main]: A x V \n\n");
+
+        // Printar o recuo da linha
+        printf("               ");
+
+        for (int i = 0; i < M; i++)
+        {
+            printf("%.2f ", multiplySparseMatrixDenseVectorResult[i]);
+        }
+
+        printf("\n");
+    }
+    else if (operation == 2)
+    {
+        printf("[INFO] [main]: A x B \n\n");
+
+        for (int i = 0; i < M; i++)
+        {
+            // Printar o recuo da linha
+            printf("               ");
+
+            for (int j = 0; j < P; j++)
+            {
+                printf("%.2f ", multiplySparseMatricesResult[i][j]);
+            }
+
+            printf("\n");
+        }
+    }
+    else if (operation == 3)
+    {
+        printf("[INFO] [main]: A x C \n\n");
+
+        for (int i = 0; i < M; i++)
+        {
+            // Printar o recuo da linha
+            printf("               ");
+
+            for (int j = 0; j < P; j++)
+            {
+                printf("%.2f ", multiplySparseMatrixDenseMatrixResult[i][j]);
+            }
+            
+            printf("\n");
+        }
+    }
+
+    // Liberar a memória alocada
+    for (int i = 0; i < M; i++)
+    {
+        free(sparseMatrixA[i].index);
+        free(sparseMatrixA[i].value);
+    }
+
+    for (int i = 0; i < N; i++)
+    {
+        free(sparseMatrixB[i].index);
+        free(sparseMatrixB[i].value);
+    }
+
+    pthread_exit(NULL);
 }
