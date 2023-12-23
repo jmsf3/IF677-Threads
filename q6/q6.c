@@ -14,29 +14,29 @@ typedef struct
     double *value;
 } SparseVector;
 
-SparseVector sparseMatrixA[M];
-SparseVector sparseMatrixB[N];
-double denseMatrixC[N][P];
-double denseVectorV[N];
+SparseVector s_matrix_a[M];
+SparseVector s_matrix_b[N];
+double d_matrix_c[N][P];
+double d_vector_v[N];
 
-double multiplySparseMatricesResult[M][P];
-double multiplySparseMatrixDenseVectorResult[M];
-double multiplySparseMatrixDenseMatrixResult[M][P];
+double multiply_sparse_matrices_result[M][P];
+double multiply_sparse_matrix_dense_vector_result[M];
+double multiply_sparse_matrix_dense_matrix_result[M][P];
 
-void *multiplySparseMatrices(void *args)
+void *multiply_sparse_matrices(void *args)
 {
     int id = *((int *) args);
 
     for (int i = id; i < M; i += NUM_THREADS)
     {
-        for (int j = 0; j < sparseMatrixA[i].size; j++)
+        for (int j = 0; j < s_matrix_a[i].size; j++)
         {
-            int k = sparseMatrixA[i].index[j];
+            int k = s_matrix_a[i].index[j];
 
-            for (int m = 0; m < sparseMatrixB[k].size; m++)
+            for (int m = 0; m < s_matrix_b[k].size; m++)
             {
-                int n = sparseMatrixB[k].index[m];
-                multiplySparseMatricesResult[i][n] += sparseMatrixA[i].value[j] * sparseMatrixB[k].value[m];
+                int n = s_matrix_b[k].index[m];
+                multiply_sparse_matrices_result[i][n] += s_matrix_a[i].value[j] * s_matrix_b[k].value[m];
             }
         }
     }
@@ -44,23 +44,23 @@ void *multiplySparseMatrices(void *args)
     pthread_exit(NULL);
 }
 
-void *multiplySparseMatrixDenseVector(void *args)
+void *multiply_sparse_matrix_dense_vector(void *args)
 {
     int id = *((int *) args);
 
     for (int i = id; i < M; i += NUM_THREADS)
     {
-        for (int j = 0; j < sparseMatrixA[i].size; j++)
+        for (int j = 0; j < s_matrix_a[i].size; j++)
         {
-            int k = sparseMatrixA[i].index[j];
-            multiplySparseMatrixDenseVectorResult[i] += sparseMatrixA[i].value[j] * denseVectorV[k];
+            int k = s_matrix_a[i].index[j];
+            multiply_sparse_matrix_dense_vector_result[i] += s_matrix_a[i].value[j] * d_vector_v[k];
         }
     }
 
     pthread_exit(NULL);
 }
 
-void *multiplySparseMatrixDenseMatrix(void *args)
+void *multiply_sparse_matrix_dense_matrix(void *args)
 {
     int id = *((int *) args);
 
@@ -68,10 +68,10 @@ void *multiplySparseMatrixDenseMatrix(void *args)
     {
         for (int j = 0; j < P; j++)
         {
-            for (int k = 0; k < sparseMatrixA[i].size; k++)
+            for (int k = 0; k < s_matrix_a[i].size; k++)
             {
-                int m = sparseMatrixA[i].index[k];
-                multiplySparseMatrixDenseMatrixResult[i][j] += sparseMatrixA[i].value[k] * denseMatrixC[m][j];
+                int m = s_matrix_a[i].index[k];
+                multiply_sparse_matrix_dense_matrix_result[i][j] += s_matrix_a[i].value[k] * d_matrix_c[m][j];
             }
         }
     }
@@ -79,7 +79,7 @@ void *multiplySparseMatrixDenseMatrix(void *args)
     pthread_exit(NULL);
 }
 
-int main()
+int main(int argc, char *argv[])
 {
     // Inicializar a matriz esparsa A
     printf("[INPUT] [main]: Enter a %dx%d matrix (A)\n\n", M, N);
@@ -90,9 +90,9 @@ int main()
         printf("                ");
     
         // Inicializar o i-ésimo vetor esparso
-        sparseMatrixA[i].size = 0;
-        sparseMatrixA[i].index = NULL;
-        sparseMatrixA[i].value = NULL;
+        s_matrix_a[i].size = 0;
+        s_matrix_a[i].index = NULL;
+        s_matrix_a[i].value = NULL;
 
         for (int j = 0; j < N; j++)
         {
@@ -101,23 +101,23 @@ int main()
 
             if (val != 0.0)
             {
-                int size = sparseMatrixA[i].size;
-                int *index = sparseMatrixA[i].index;
-                double *value = sparseMatrixA[i].value;
+                int size = s_matrix_a[i].size;
+                int *index = s_matrix_a[i].index;
+                double *value = s_matrix_a[i].value;
 
-                sparseMatrixA[i].index = (int *) realloc(index, (size + 1) * sizeof(int));
-                sparseMatrixA[i].value = (double *) realloc(value, (size + 1) * sizeof(double));
+                s_matrix_a[i].index = (int *) realloc(index, (size + 1) * sizeof(int));
+                s_matrix_a[i].value = (double *) realloc(value, (size + 1) * sizeof(double));
 
-                if (sparseMatrixA[i].index == NULL || sparseMatrixA[i].value == NULL)
+                if (s_matrix_a[i].index == NULL || s_matrix_a[i].value == NULL)
                 {
                     printf("[ERROR] [main]: failed to allocate memory\n");
                     exit(-1);
                 }
 
-                sparseMatrixA[i].index[size] = j;
-                sparseMatrixA[i].value[size] = val;
+                s_matrix_a[i].index[size] = j;
+                s_matrix_a[i].value[size] = val;
 
-                sparseMatrixA[i].size++;
+                s_matrix_a[i].size++;
             }
         }
     }
@@ -146,7 +146,7 @@ int main()
         // Inicializar o vetor denso
         for (int i = 0; i < N; i++)
         {
-            scanf("%lf", &denseVectorV[i]);
+            scanf("%lf", &d_vector_v[i]);
         }
 
         printf("\n");
@@ -161,9 +161,9 @@ int main()
             printf("                ");
 
             // Inicializar o i-ésimo vetor esparso
-            sparseMatrixB[i].size = 0;
-            sparseMatrixB[i].index = NULL;
-            sparseMatrixB[i].value = NULL;
+            s_matrix_b[i].size = 0;
+            s_matrix_b[i].index = NULL;
+            s_matrix_b[i].value = NULL;
 
             for (int j = 0; j < P; j++)
             {
@@ -172,23 +172,23 @@ int main()
 
                 if (val != 0.0)
                 {
-                    int size = sparseMatrixB[i].size;
-                    int *index = sparseMatrixB[i].index;
-                    double *value = sparseMatrixB[i].value;
+                    int size = s_matrix_b[i].size;
+                    int *index = s_matrix_b[i].index;
+                    double *value = s_matrix_b[i].value;
 
-                    sparseMatrixB[i].index = (int *) realloc(index, (size + 1) * sizeof(int));
-                    sparseMatrixB[i].value = (double *) realloc(value, (size + 1) * sizeof(double));
+                    s_matrix_b[i].index = (int *) realloc(index, (size + 1) * sizeof(int));
+                    s_matrix_b[i].value = (double *) realloc(value, (size + 1) * sizeof(double));
 
-                    if (sparseMatrixB[i].index == NULL || sparseMatrixB[i].value == NULL)
+                    if (s_matrix_b[i].index == NULL || s_matrix_b[i].value == NULL)
                     {
                         printf("[ERROR] [main]: failed to allocate memory\n");
                         exit(-1);
                     }
 
-                    sparseMatrixB[i].index[size] = j;
-                    sparseMatrixB[i].value[size] = val;
+                    s_matrix_b[i].index[size] = j;
+                    s_matrix_b[i].value[size] = val;
 
-                    sparseMatrixB[i].size++;
+                    s_matrix_b[i].size++;
                 }
             }
         }
@@ -207,7 +207,7 @@ int main()
 
             for (int j = 0; j < P; j++)
             {
-                scanf("%lf", &denseMatrixC[i][j]);
+                scanf("%lf", &d_matrix_c[i][j]);
             }
         }
 
@@ -222,7 +222,7 @@ int main()
     // Criar as threads para a realização da operação escolhida
     int thread_id[NUM_THREADS];
     pthread_t threads[NUM_THREADS];
-    void *functions[3] = {multiplySparseMatrixDenseVector, multiplySparseMatrices, multiplySparseMatrixDenseMatrix};
+    void *functions[3] = {multiply_sparse_matrix_dense_vector, multiply_sparse_matrices, multiply_sparse_matrix_dense_matrix};
 
     // Inicializar as threads
     for (int i = 0; i < NUM_THREADS; i++)
@@ -259,7 +259,7 @@ int main()
 
         for (int i = 0; i < M; i++)
         {
-            printf("%.2f ", multiplySparseMatrixDenseVectorResult[i]);
+            printf("%.2f ", multiply_sparse_matrix_dense_vector_result[i]);
         }
 
         printf("\n");
@@ -275,7 +275,7 @@ int main()
 
             for (int j = 0; j < P; j++)
             {
-                printf("%.2f ", multiplySparseMatricesResult[i][j]);
+                printf("%.2f ", multiply_sparse_matrices_result[i][j]);
             }
 
             printf("\n");
@@ -292,7 +292,7 @@ int main()
 
             for (int j = 0; j < P; j++)
             {
-                printf("%.2f ", multiplySparseMatrixDenseMatrixResult[i][j]);
+                printf("%.2f ", multiply_sparse_matrix_dense_matrix_result[i][j]);
             }
             
             printf("\n");
@@ -302,14 +302,14 @@ int main()
     // Liberar a memória alocada
     for (int i = 0; i < M; i++)
     {
-        free(sparseMatrixA[i].index);
-        free(sparseMatrixA[i].value);
+        free(s_matrix_a[i].index);
+        free(s_matrix_a[i].value);
     }
 
     for (int i = 0; i < N; i++)
     {
-        free(sparseMatrixB[i].index);
-        free(sparseMatrixB[i].value);
+        free(s_matrix_b[i].index);
+        free(s_matrix_b[i].value);
     }
 
     pthread_exit(NULL);

@@ -2,162 +2,167 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define N 5 // Número de arquivos
-#define P 5 // Número de produtos
-#define T 3 // Número de threads
-#define MAX_NUM_PRODUCTS 10 // Número máximo de produtos por arquivo
+#define N 5
+#define T 2
+#define P 5
+#define Q 5
 
-// Array de mutexes para exclusão mútua refinada
-pthread_mutex_t mutexArray[P + 1];
+int product[P + 1];
+pthread_mutex_t mutex[P + 1];
 
-// Array para armazenar a frequência de cada produto
-int freqProducts[P + 1] = {0};
-
-// Número total de produtos lidos
-int totalProducts = 0;  
-
-void generateRandomList(int *list, int size) 
-{
-    for (int i = 0; i < size; i++) 
-    {
-        list[i] = rand() % (P + 1); 
-    }
-}
-
-void createFiles() 
-{
-    for (int x = 1; x <= N; x++) 
-    {
-        int numProducts = rand() % MAX_NUM_PRODUCTS + 1;
-
-        // Define o caminho do arquivo
-        char path[10];
-        sprintf(path, "%d.in", x);
-
-        // Cria o arquivo
-        FILE *file = fopen(path, "w");
-
-        if (file == NULL) 
-        {
-            printf("[ERROR] [createFiles]: failed to create file %s\n", path);
-            exit(-1);
-        }
-
-        // Gera uma lista de números aleatórios
-        int *randomList = malloc(numProducts * sizeof(int));
-
-        if (randomList == NULL) 
-        {
-            printf("[ERROR] [createFiles]: failed to allocate memory\n");
-            exit(-1);
-        }
-
-        generateRandomList(randomList, numProducts);
-
-        for (int i = 0; i < numProducts; i++) 
-        {
-            fprintf(file, "%d\n", randomList[i]);
-        }
-
-        free(randomList);
-        fclose(file);
-    }
-}
-
-void *readFiles(void *args) 
-{
-    int threadIndex = *((int *) args);
-
-    for (int fileNumber = threadIndex + 1; fileNumber <= N; fileNumber += T) 
-    {
-        char path[10];
-        sprintf(path, "%d.in", fileNumber);
-
-        FILE *file = fopen(path, "r");
-
-        if (file == NULL) 
-        {
-            printf("[ERROR] [readFiles]: failed to open file %s\n", path);
-            exit(-1);
-        }
-
-        // Lê os produtos dos arquivos
-        int product;
-
-        while (fscanf(file, "%d", &product) != EOF) 
-        {
-            // Trava o mutex correspondente à posição do array de frequência
-            pthread_mutex_lock(&mutexArray[product]);
-
-            // Atualiza a frequência do produto lido
-            freqProducts[product]++;
-            totalProducts++;
-
-            // Libera o mutex correspondente à posição do array de frequência
-            pthread_mutex_unlock(&mutexArray[product]);
-        }
-
-        fclose(file);
-    }
-
-    pthread_exit(NULL);
-}
-
-int main() 
+void create_files()
 {
     // Seed
     srand(time(NULL));
 
-    // Cria os arquivos
-    createFiles();
-
-    // Cria as threads para ler os arquivos
-    pthread_t threads[T];
-    int threadIndexes[T];
-
-    // Inicializa os mutexes para cada posição do array de frequência
-    for (int i = 0; i <= P; i++) 
+    for (int x = 1; x <= N; x++)
     {
-        pthread_mutex_init(&mutexArray[i], NULL);
+        // Generate a random number between 1 and Q to define the number of products in the file
+        int num_products = rand() % Q + 1;
+
+        // Define the file's path
+        char path[10];
+        sprintf(path, "%d.in", x);
+
+        // Create the file
+        FILE *file = fopen(path, "w");
+
+        if (file == NULL)
+        {
+            printf("[ERROR] [create_files]: failed to create file %s\n", path);
+            exit(-1);
+        }
+
+        // Write in the file
+        for (int i = 0; i < num_products; i++)
+        {
+            // Generate a random number between 0 and P
+            int p = rand() % (P + 1);
+
+            // Write the product's number in the file
+            fprintf(file, "%d\n", p);
+        }
+
+        // Close the file
+        fclose(file);
+    }
+}
+
+void *read_files(void *args)
+{
+    // Get the thread id from the arguments
+    int id = *((int *) args);
+
+    for (int x = id; x <= N; x += T)
+    {
+        // Define the file's path
+        char path[10];
+        sprintf(path, "%d.in", x);
+
+        // Open the file
+        FILE *file = fopen(path, "r");
+
+        if (file == NULL)
+        {
+            printf("[ERROR] [thread_%d]: failed to open file %s\n", id, path);
+            exit(-1);
+        }
+
+        // Read the file
+        int p;
+        
+        while (fscanf(file, "%d", &p) != EOF)
+        {
+            // Lock the mutex
+            pthread_mutex_lock(&mutex[p]);
+
+            // Increment the number of products 'p'
+            product[p]++;
+            // printf("[INFO] [thread_%d]: Incremented product[%d]\n", id, p);
+
+            // Unlock the mutex
+            pthread_mutex_unlock(&mutex[p]);
+        }
+
+        // Close the file
+        fclose(file); 
     }
 
-    // Inicializa as threads
-    for (int i = 0; i < T; i++) 
-    {
-        threadIndexes[i] = i;
+    pthread_exit(NULL);
+} 
 
-        if (pthread_create(&threads[i], NULL, readFiles, (void *)&threadIndexes[i]) != 0) 
+int main(int argc, char *argv[])
+{
+    // Generate input files
+    create_files();
+
+    // Create T threads to read the input files
+    int *thread_id[T];
+    pthread_t thread[T];
+
+    // Initialize the mutexes that control the access to product's array
+    for (int i = 0; i <= P; i++)
+    {
+        pthread_mutex_init(&mutex[i], NULL);
+    }
+
+    // Initialize the threads
+    for (int i = 0; i < T; i++)
+    {
+        // printf("[INFO] [main]: Initializing thread %d...\n", i + 1);
+
+        thread_id[i] = (int *) malloc(sizeof(int));
+        *thread_id[i] = i + 1;
+
+        int status = pthread_create(&thread[i], NULL, read_files, (void *) thread_id[i]);
+
+        if (status != 0)
         {
-            printf("[ERROR] [main]: failed to create thread %d\n", i);
+            printf("[ERROR] [main]: pthread_create returned error code %d\n", status);
             exit(-1);
         }
     }
 
-    // Aguarda a finalização da execução de cada thread
-    for (int i = 0; i < T; i++) 
+    // Join the threads
+    for (int i = 0; i < T; i++)
     {
-        if (pthread_join(threads[i], NULL) != 0) 
+        // printf("[INFO] [main]: Waiting for thread %d...\n", i + 1);
+        int status = pthread_join(thread[i], NULL);
+
+        if (status != 0)
         {
-            printf("[ERROR] [main]: failed to join thread %d\n", i);
+            printf("[ERROR] [main]: pthread_join returned error code %d\n", status);
             exit(-1);
         }
     }
 
-    // Imprime o total de produtos lidos
-    printf("[INFO] [main]: totalProducts = %d\n", totalProducts);
+    // Calculate the total number of products
+    int num_products = 0;
 
-    // Imprime a frequência de cada produto em relação ao total de produtos lidos
-    for (int i = 0; i <= P; i++) 
+    for (int i = 0; i <= P; i++)
     {
-        double percentage = (100.0 * freqProducts[i]) / totalProducts;
-        printf("[INFO] [main]: freqProducts[%d] / totalProducts = %5.2f%%\n", i, percentage);
+        num_products += product[i]; 
+    }
+    
+    printf("[INFO] [main]: num_products = %d\n", num_products);
+
+    // Show the percentual for each product
+    for (int i = 0; i <= P; i++)
+    {
+        printf("[INFO] [main]: product[%d] / num_products = %.2f\n", i, (product[i] * 1.0) / num_products);
     }
 
-    // Destrói os mutexes
-    for (int i = 0; i <= P; i++) 
+    // Free the memory that was allocated to store the thread ids
+    for (int i = 0; i < T; i++)
     {
-        pthread_mutex_destroy(&mutexArray[i]);
+        free(thread_id[i]);
     }
 
-    return 0;
+    // Destroy the mutexes that control the access to product's array
+    for (int i = 0; i <= P; i++)
+    {
+        pthread_mutex_destroy(&mutex[i]);
+    }
+
+    pthread_exit(NULL);
 }

@@ -1,119 +1,139 @@
+#define _XOPEN_SOURCE 600
+
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 
-#define N 5
+#define n 12
 
-int V[N] = {3, 4, 2, 1, 0};
-int A[N] = {3, 4, 2, 1, 0};
+int A[n];
+int V[n] = {1, 5, 8, 5, 7, 3, 2, 4, 1, 6, 2, 9};
 
-void *sort(void *args);
-void merge(int l, int r);
-
-int main()
+void merge(int l, int m, int r)
 {
-    // Variables
-    int i, tmp;
-
-    // Printing the unsorted array
-    printf("[INFO] [main]: Unsorted array | "); for (i = 0; i < N; i++) printf("%d ", V[i]); printf("\n");
-
-    // Creating the main mergesort thread
-    pthread_t mergeSort;
-
-    // Limits info
-    int limits[2] = {0, N - 1};
-
-    // Creating the thread
-    tmp = pthread_create(&mergeSort, NULL, sort, (void *) limits);
-
-    if (tmp)
+    for (int i = l; i < r; i++)
     {
-        printf("[ERROR] [main]: pthread_join returned error code %d\n", tmp);
-        exit(-1);
+        A[i] = V[i];
     }
 
-    // Wait for the thread to be executed
-    pthread_join(mergeSort, NULL);
+    int i = l, j = m;
 
-    // Printing the sorted array
-    printf("[INFO] [main]:   Sorted array | "); for (i = 0; i < N; i++) printf("%d ", V[i]); printf("\n");
-
-    pthread_exit(NULL);
-}
-
-// Merge function
-void merge(int l, int r)
-{
-    int i, j, k, m;
-    for (i = l; i <= r; i++) A[i] = V[i];
-
-    m = floor((l + r) / 2);
-    i = l;
-    j = m + 1;
-
-    for (k = l; k <= r; k++)
+    for (int k = l; k < r; k++)
     {
-        if (i == m + 1)
+        if (j == r)
         {
-            V[k] = A[j];
-            j = j + 1;
+            V[k] = A[i]; i = i + 1;
         }
-        else if (j == r + 1)
+        else if (i == m)
         {
-            V[k] = A[i];
-            i = i + 1;
+            V[k] = A[j]; j = j + 1;
         }
         else if (A[i] <= A[j])
         {
-            V[k] = A[i];
-            i = i + 1;
+            V[k] = A[i]; i = i + 1;
         }
         else
         {
-            V[k] = A[j];
-            j = j + 1;
+            V[k] = A[j]; j = j + 1;
         }
     }
 }
 
 void *sort(void *args)
 {
-    int l, r, *limits, m;
+    // Get the arguments of the sort function
+    int l = ((int *) args)[0];
+    int r = ((int *) args)[1];
 
-    // Getting the limits
-    limits = ((int *) args);
-    l = limits[0];
-    r = limits[1];
+    if ((r - l) >= 2)
+    {
+        int m = (l + r) / 2;
 
-    // If l == r
-    if (l == r)
-        pthread_exit(NULL);
+        // Create two child threads to sort the left and right sides of the array
+        pthread_t l_thread;
+        pthread_t r_thread;
 
-    // Middle element of the array
-    m = floor((l + r) / 2);
+        // Initialize the left thread
+        int l_args[2] = {l, m};
+        int l_create_status = pthread_create(&l_thread, NULL, sort, (void *) &l_args);
 
-    // Left Thread sort{l -> m} - Right Thread sort{m + 1 -> r}
-    pthread_t left, right;
+        if (l_create_status != 0)
+        {
+            printf("[ERROR] [sort]: pthread_create returned error code %d\n", l_create_status);
+            exit(-1);
+        }
 
-    // New limits
-    int leftLimits[2] = {l, m};
-    int rightLimits[2] = {m + 1, r};
+        // Initialize the right thread
+        int r_args[2] = {m, r};
+        int r_create_status = pthread_create(&r_thread, NULL, sort, (void *) &r_args);
 
-    // Creating the new threads
-    pthread_create(&left, NULL, sort, (void *) leftLimits);
-    pthread_create(&right, NULL, sort, (void *) rightLimits);
+        if (r_create_status != 0)
+        {
+            printf("[ERROR] [sort]: pthread_create returned error code %d\n", r_create_status);
+            exit(-1);
+        }
 
-    // Wait for the left side to finish
-    pthread_join(left, NULL);
+        // Wait for the child threads to finish sorting the subarrays before merging
+        int l_join_status = pthread_join(l_thread, NULL);
+        int r_join_status = pthread_join(r_thread, NULL);
 
-    // Wait for the right side to finish
-    pthread_join(right, NULL);
+        if (l_join_status != 0 || r_join_status != 0)
+        {
+            int error_code = l_join_status != 0 ? l_join_status : r_join_status;
+            printf("[ERROR] [main]: pthread_join returned error code %d\n", error_code);
+            exit(-1);
+        }
+    
+        merge(l, m, r);
+    }
 
-    // Call the merge thread
-    merge(l, r);
+    // Finish thread execution
+    pthread_exit(NULL);
+}
 
-    // Exit thread
+int main(int argc, char *argv[])
+{
+    // Print unsorted array
+    printf("[INFO] [main]: V = (");
+    for (int i = 0; i < n; i++)
+    {
+        if (i == n - 1)
+            printf("%d)\n", V[i]);
+        else
+            printf("%d, ", V[i]);
+    }
+
+    // Create a thread to sort the array
+    pthread_t thread;
+
+    // Initialize the thread
+    int args[2] = {0, n};
+    int create_status = pthread_create(&thread, NULL, sort, (void *) &args);
+
+    if (create_status != 0)
+    {
+        printf("[ERROR] [main]: pthread_create returned error code %d\n", create_status);
+        exit(-1);
+    }
+
+    // Join the thread
+    int join_status = pthread_join(thread, NULL);
+
+    if (join_status != 0)
+    {
+        printf("[ERROR] [main]: pthread_join returned error code %d\n", join_status);
+        exit(-1);
+    }
+    
+    // Print sorted array
+    printf("[INFO] [main]: V = (");
+    for (int i = 0; i < n; i++)
+    {
+        if (i == n - 1)
+            printf("%d)\n", V[i]);
+        else
+            printf("%d, ", V[i]);
+    }
+
     pthread_exit(NULL);
 }
